@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  discord-bot:
+    build: .
+    container_name: sniggering-bot
+    restart: unless-stopped
+    environment:
+      - DISCORD_TOKEN=${DISCORD_TOKEN}
+    volumes:
+      # Mount data.json for persistence
+      - ./data.json:/app/data.json
+    # Uncomment if your bot serves HTTP endpoints
+    # ports:
+    #   - "3000:3000"
