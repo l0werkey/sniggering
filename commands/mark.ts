@@ -19,44 +19,74 @@ function capitalize(text: string): string {
 
 export default class MarkCommand extends Command {
     public override data(): SlashCommandBuilder {
-        const plantChoices = PLANTS.map(plant => ({ 
-            name: `🌱 ${capitalize(plant)}`, 
-            value: `plant:${plant}` 
-        }));
-        
-        const gearChoices = GEAR.map(gear => ({ 
-            name: `⚙️ ${capitalize(gear)}`, 
-            value: `gear:${gear}` 
-        }));
-
-        const eggChoices = EGGS.map(egg => ({ 
-            name: `🥚 ${capitalize(egg)}`, 
-            value: `egg:${egg}` 
-        }));
-
         return new SlashCommandBuilder()
             .setName('mark')
             .setDescription('Mark plants, gear, or eggs for notifications')
-            .addStringOption(option => 
-                option.setName("item")
-                .setDescription("the plant, gear, or egg item")
-                .setRequired(true)
-                .addChoices([
-                    {name: "📋 List Current Selections", value: "list"}, 
-                    ...plantChoices,
-                    ...gearChoices,
-                    ...eggChoices
-                ])
+            .addSubcommand(subcommand =>
+                subcommand
+                    .setName('plant')
+                    .setDescription('Mark a plant for notifications')
+                    .addStringOption(option =>
+                        option.setName('name')
+                            .setDescription('Select a plant')
+                            .setRequired(true)
+                            .addChoices(
+                                ...PLANTS.map(plant => ({
+                                    name: `🌱 ${capitalize(plant)}`,
+                                    value: plant
+                                }))
+                            )
+                    )
+            )
+            .addSubcommand(subcommand =>
+                subcommand
+                    .setName('gear')
+                    .setDescription('Mark gear for notifications')
+                    .addStringOption(option =>
+                        option.setName('name')
+                            .setDescription('Select gear')
+                            .setRequired(true)
+                            .addChoices(
+                                ...GEAR.map(gear => ({
+                                    name: `⚙️ ${capitalize(gear)}`,
+                                    value: gear
+                                }))
+                            )
+                    )
+            )
+            .addSubcommand(subcommand =>
+                subcommand
+                    .setName('egg')
+                    .setDescription('Mark an egg for notifications')
+                    .addStringOption(option =>
+                        option.setName('name')
+                            .setDescription('Select an egg')
+                            .setRequired(true)
+                            .addChoices(
+                                ...EGGS.map(egg => ({
+                                    name: `🥚 ${capitalize(egg)}`,
+                                    value: egg
+                                }))
+                            )
+                    )
+            )
+            .addSubcommand(subcommand =>
+                subcommand
+                    .setName('list')
+                    .setDescription('📋 List your current marked items')
             ) as any;
     }
 
     public override async execute(interaction: CommandInteraction): Promise<void> {
-        const item = (interaction as any).options.getString("item");
         const user = interaction.user;
-
         let additions = "";
 
-        if(item === "list") {
+        // Handle subcommands
+        if (!interaction.isChatInputCommand()) return;
+        
+        const subcommand = interaction.options.getSubcommand();
+
+        if (subcommand === 'list') {
             const marked = getMarkedForUser(user.id);
             if(marked.length === 0) {
                 await interaction.reply({ content: "You have not marked any items yet.", flags: MessageFlags.Ephemeral });
@@ -83,13 +113,9 @@ export default class MarkCommand extends Command {
             return;
         }
 
-        // Parse the item selection
-        const [itemType, itemName] = item.split(':') as ['plant' | 'gear' | 'egg', string];
-        
-        if (!itemType || !itemName) {
-            await interaction.reply({ content: "Invalid item selection!", flags: MessageFlags.Ephemeral });
-            return;
-        }
+        // Handle marking items
+        const itemName = interaction.options.getString('name', true);
+        const itemType = subcommand as 'plant' | 'gear' | 'egg';
 
         if (itemName === "burning bud") {
             additions = "https://tenor.com/view/diddy-blud-diddy-gif-16820390887287528746";
