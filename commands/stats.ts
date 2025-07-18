@@ -10,26 +10,41 @@ export default class StatsCommand extends Command {
     }
 
     public override async execute(interaction: CommandInteraction): Promise<void> {
-        const general = await fetchSeedsNGear();
-        const eggs = await fetchEggs();
+        try {
+            // Defer the reply immediately to prevent timeout
+            await interaction.deferReply();
 
-        const seedEmbed = new EmbedBuilder()
-            .setTitle("🌱 Seeds")
-            .setTimestamp()
-            .addFields(...general.seeds.map(data => { return { name: data.name, value: `x${data.quantity}` } }));
+            const general = await fetchSeedsNGear();
+            const eggs = await fetchEggs();
 
-        const gearEmbed = new EmbedBuilder()
-            .setTitle("⚙️ Gear")
-            .setTimestamp()
-            .addFields(...general.gear.map(data => { return { name: data.name, value: `x${data.quantity}` } }));
+            const seedEmbed = new EmbedBuilder()
+                .setTitle("🌱 Seeds")
+                .setTimestamp()
+                .addFields(...general.seeds.map(data => { return { name: data.name, value: `x${data.quantity}` } }));
 
-        const eggEmbed = new EmbedBuilder()
-            .setTitle("🥚 Eggs")
-            .setTimestamp()
-            .addFields(...eggs.map(data => { return { name: data.name, value: `x${data.quantity}` } }));
+            const gearEmbed = new EmbedBuilder()
+                .setTitle("⚙️ Gear")
+                .setTimestamp()
+                .addFields(...general.gear.map(data => { return { name: data.name, value: `x${data.quantity}` } }));
 
-        interaction.reply({
-            embeds: [seedEmbed, gearEmbed, eggEmbed],
-        });
+            const eggEmbed = new EmbedBuilder()
+                .setTitle("🥚 Eggs")
+                .setTimestamp()
+                .addFields(...eggs.map(data => { return { name: data.name, value: `x${data.quantity}` } }));
+
+            await interaction.editReply({
+                embeds: [seedEmbed, gearEmbed, eggEmbed],
+            });
+        } catch (error) {
+            console.error('Error in stats command:', error);
+            
+            const errorMessage = "Sorry, there was an error fetching the stats. Please try again later.";
+            
+            if (interaction.deferred) {
+                await interaction.editReply({ content: errorMessage });
+            } else if (!interaction.replied) {
+                await interaction.reply({ content: errorMessage, ephemeral: true });
+            }
+        }
     }
 }

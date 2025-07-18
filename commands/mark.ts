@@ -78,67 +78,77 @@ export default class MarkCommand extends Command {
     }
 
     public override async execute(interaction: CommandInteraction): Promise<void> {
-        const user = interaction.user;
-        let additions = "";
+        try {
+            const user = interaction.user;
+            let additions = "";
 
-        // Handle subcommands
-        if (!interaction.isChatInputCommand()) return;
-        
-        const subcommand = interaction.options.getSubcommand();
+            // Handle subcommands
+            if (!interaction.isChatInputCommand()) return;
+            
+            const subcommand = interaction.options.getSubcommand();
 
-        if (subcommand === 'list') {
-            const marked = getMarkedForUser(user.id);
-            if(marked.length === 0) {
-                await interaction.reply({ content: "You have not marked any items yet.", flags: MessageFlags.Ephemeral });
+            if (subcommand === 'list') {
+                const marked = getMarkedForUser(user.id);
+                if(marked.length === 0) {
+                    await interaction.reply({ content: "You have not marked any items yet.", flags: MessageFlags.Ephemeral });
+                    return;
+                }
+
+                const fields: RestOrArray<APIEmbedField> = marked.map(mark => {
+                    const typeEmoji = mark.type === 'plant' ? '🌱' : mark.type === 'gear' ? '⚙️' : '🥚';
+                    const typeName = mark.type === 'plant' ? 'Plant' : mark.type === 'gear' ? 'Gear' : 'Egg';
+                    return {
+                        name: `${typeEmoji} ${capitalize(mark.name)}`,
+                        value: `${typeName}`,
+                        inline: true
+                    };
+                });
+
+                const embed = new EmbedBuilder()
+                    .setTitle(`Marked Items for ${user.username}`)
+                    .setDescription(`🌱 Plants • ⚙️ Gear • 🥚 Eggs`)
+                    .setTimestamp()
+                    .addFields(fields);
+
+                await interaction.reply({ embeds: [embed] });
                 return;
             }
 
-            const fields: RestOrArray<APIEmbedField> = marked.map(mark => {
-                const typeEmoji = mark.type === 'plant' ? '🌱' : mark.type === 'gear' ? '⚙️' : '🥚';
-                const typeName = mark.type === 'plant' ? 'Plant' : mark.type === 'gear' ? 'Gear' : 'Egg';
-                return {
-                    name: `${typeEmoji} ${capitalize(mark.name)}`,
-                    value: `${typeName}`,
-                    inline: true
-                };
-            });
+            // Handle marking items
+            const itemName = interaction.options.getString('name', true);
+            const itemType = subcommand as 'plant' | 'gear' | 'egg';
 
-            const embed = new EmbedBuilder()
-                .setTitle(`Marked Items for ${user.username}`)
-                .setDescription(`🌱 Plants • ⚙️ Gear • 🥚 Eggs`)
-                .setTimestamp()
-                .addFields(fields);
+            if (itemName === "burning bud") {
+                additions = "https://tenor.com/view/diddy-blud-diddy-gif-16820390887287528746";
+            } else if (itemName === "mango") {
+                additions = "https://tenor.com/view/blox-fruits-blue-lock-meme-tuff-mango-gif-18047942390642216707"
+            } else {
+                additions = "https://tenor.com/view/mango-mango-mark-sinister-mark-invincible-trollface-gif-14377825471605416360"
+            }
 
-            await interaction.reply({ embeds: [embed] });
-            return;
-        }
+            const marked = toggleMark(user.id, itemName, itemType);
+            const typeEmoji = itemType === 'plant' ? '🌱' : itemType === 'gear' ? '⚙️' : '🥚';
+            const typeName = itemType === 'plant' ? 'Plant' : itemType === 'gear' ? 'Gear' : 'Egg';
 
-        // Handle marking items
-        const itemName = interaction.options.getString('name', true);
-        const itemType = subcommand as 'plant' | 'gear' | 'egg';
-
-        if (itemName === "burning bud") {
-            additions = "https://tenor.com/view/diddy-blud-diddy-gif-16820390887287528746";
-        } else if (itemName === "mango") {
-            additions = "https://tenor.com/view/blox-fruits-blue-lock-meme-tuff-mango-gif-18047942390642216707"
-        } else {
-            additions = "https://tenor.com/view/mango-mango-mark-sinister-mark-invincible-trollface-gif-14377825471605416360"
-        }
-
-        const marked = toggleMark(user.id, itemName, itemType);
-        const typeEmoji = itemType === 'plant' ? '🌱' : itemType === 'gear' ? '⚙️' : '🥚';
-        const typeName = itemType === 'plant' ? 'Plant' : itemType === 'gear' ? 'Gear' : 'Egg';
-
-        if (marked) {
-            await interaction.reply({
-                content: `# **Marked** ${typeEmoji} ${itemName} (${typeName}) for ${user.username}.\n${additions}`,
-                flags: MessageFlags.Ephemeral
-            });
-        } else {
-            await interaction.reply({
-                content: `# **Unmarked** ${typeEmoji} ${itemName} (${typeName}) for ${user.username}.\n${additions}`,
-                flags: MessageFlags.Ephemeral
-            });
+            if (marked) {
+                await interaction.reply({
+                    content: `# **Marked** ${typeEmoji} ${itemName} (${typeName}) for ${user.username}.\n${additions}`,
+                    flags: MessageFlags.Ephemeral
+                });
+            } else {
+                await interaction.reply({
+                    content: `# **Unmarked** ${typeEmoji} ${itemName} (${typeName}) for ${user.username}.\n${additions}`,
+                    flags: MessageFlags.Ephemeral
+                });
+            }
+        } catch (error) {
+            console.error('Error in mark command:', error);
+            
+            const errorMessage = "Sorry, there was an error processing your mark request. Please try again.";
+            
+            if (!interaction.replied && !interaction.deferred) {
+                await interaction.reply({ content: errorMessage, flags: MessageFlags.Ephemeral });
+            }
         }
     }
 }
