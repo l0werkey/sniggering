@@ -8,8 +8,9 @@ services:
     environment:
       - DISCORD_TOKEN=${DISCORD_TOKEN}
     volumes:
-      # Mount data.json for persistence
-      - ./data.json:/app/data.json
+      # Mount the entire project directory to preserve file permissions
+      - .:/app
+    working_dir: /app
     # Uncomment if your bot serves HTTP endpoints
     # ports:
     #   - "3000:3000"

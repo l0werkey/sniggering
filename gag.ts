@@ -14,8 +14,11 @@ type SeedsNGear = {
     gear: Item[]
 }
 
+type Eggs = Item[];
+
 type Cache = {
     seedsNGear?: SeedsNGear;
+    eggs?: Eggs;
 }
 
 export let cache: Cache = {};
@@ -47,33 +50,102 @@ export async function fetchSeedsNGear(): Promise<SeedsNGear> {
     }
 }
 
+export async function fetchEggs(): Promise<Item[]> {
+    const url = `https://growagardenstock.com/api/stock?type=egg&ts=${Date.now()}`;
+
+    const response = await fetch(url);
+    const data = await response.json() as any;
+
+    // Deduplicate and merge eggs
+    const eggMap = new Map<string, number>();
+    
+    for (const eggStr of data.egg) {
+        const parsed = parseItem(eggStr);
+        const existing = eggMap.get(parsed.name) || 0;
+        eggMap.set(parsed.name, existing + parsed.quantity);
+    }
+
+    return Array.from(eggMap.entries()).map(([name, quantity]) => ({
+        name,
+        quantity
+    }));
+}
+
 function formatForComparison(seedName: string) {
     return seedName.replaceAll(" ", "_").toLowerCase();
 }
 
 function onNewCache() {
     const marked = getAllMarked();
-    const embedFields: { [userId: string]: any[] } = {};
+    const embedFields: { [userId: string]: { plants: any[], gear: any[], eggs: any[] } } = {};
 
-    for (const [userId, seeds] of Object.entries(marked)) {
-        embedFields[userId] = [];
-        for (const seed of seeds) {
-            const formattedSeed = formatForComparison(seed);
-            if (cache.seedsNGear?.seeds.some(s => formatForComparison(s.name).includes(formattedSeed))) {
-                embedFields[userId].push({
-                    name: seed,
-                    value: "is now available!"
-                });
+    for (const [userId, items] of Object.entries(marked)) {
+        embedFields[userId] = { plants: [], gear: [], eggs: [] };
+        
+        for (const item of items) {
+            const formattedName = formatForComparison(item.name);
+            
+            if (item.type === 'plant') {
+                // Check if this plant/seed is available
+                if (cache.seedsNGear?.seeds.some(s => formatForComparison(s.name).includes(formattedName))) {
+                    embedFields[userId].plants.push({
+                        name: `🌱 ${item.name}`,
+                        value: "is now available!",
+                        inline: true
+                    });
+                }
+            } else if (item.type === 'gear') {
+                // Check if this gear is available
+                if (cache.seedsNGear?.gear.some(g => formatForComparison(g.name).includes(formattedName))) {
+                    embedFields[userId].gear.push({
+                        name: `⚙️ ${item.name}`,
+                        value: "is now available!",
+                        inline: true
+                    });
+                }
+            } else if (item.type === 'egg') {
+                // Check if this egg is available
+                if (cache.eggs?.some(e => formatForComparison(e.name).includes(formattedName))) {
+                    embedFields[userId].eggs.push({
+                        name: `🥚 ${item.name}`,
+                        value: "is now available!",
+                        inline: true
+                    });
+                }
             }
         }
     }
 
     for (const [userId, fields] of Object.entries(embedFields)) {
-        if (fields.length > 0) {
+        const allFields = [...fields.plants, ...fields.gear, ...fields.eggs];
+        
+        if (allFields.length > 0) {
+            let title = "Marked Items Available";
+            let description = "The following items you marked are now available!";
+            
+            const typeCount = [
+                fields.plants.length > 0 ? "🌱 **Plants**" : "",
+                fields.gear.length > 0 ? "⚙️ **Gear**" : "",
+                fields.eggs.length > 0 ? "🥚 **Eggs**" : ""
+            ].filter(Boolean);
+            
+            if (typeCount.length > 1) {
+                description += "\n\n" + typeCount.join(" • ");
+            } else if (fields.plants.length > 0) {
+                title = "Marked Plants Available";
+                description = "The following plants you marked are now available! 🌱";
+            } else if (fields.gear.length > 0) {
+                title = "Marked Gear Available";
+                description = "The following gear you marked is now available! ⚙️";
+            } else if (fields.eggs.length > 0) {
+                title = "Marked Eggs Available";
+                description = "The following eggs you marked are now available! 🥚";
+            }
+
             const embed = new EmbedBuilder()
-                .setTitle("Marked Seeds Available")
-                .setDescription(`The following seeds you marked are now available!`)
-                .addFields(fields)
+                .setTitle(title)
+                .setDescription(description)
+                .addFields(allFields)
                 .setTimestamp();
 
             DMUserEmbed(userId, embed);
@@ -85,9 +157,11 @@ export function registerFetcher() {
     setInterval(async () => {
         try {
             const seedsNGear = await fetchSeedsNGear();
+            const eggs = await fetchEggs();
             cache.seedsNGear = seedsNGear;
+            cache.eggs = eggs;
         } catch (error) {
-            console.error("Failed to fetch Seeds and Gear:", error);
+            console.error("Failed to fetch Seeds, Gear, and Eggs:", error);
         }
 
         const str = JSON.stringify(cache);

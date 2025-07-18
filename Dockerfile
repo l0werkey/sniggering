@@ -13,18 +13,5 @@ RUN bun install --frozen-lockfile
 # Copy source code
 COPY . .
 
-# Expose port (optional, depends on your app needs)
-# EXPOSE 3000
-
-# Create a non-root user for security
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S bunuser -u 1001
-
-# Change ownership of the app directory to the non-root user
-RUN chown -R bunuser:nodejs /app
-
-# Switch to non-root user
-USER bunuser
-
 # Command to run the application
 CMD ["bun", "run", "index.ts"]
